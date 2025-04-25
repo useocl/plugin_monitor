@@ -461,16 +461,15 @@ public class Monitor implements ChangeListener {
 			fireNewLogMessage("getting number of arguments for operation call", e1);
 			return false;
 		}
-		
-		Map<String, Expression> arguments = new HashMap<String, Expression>();
-    	
+
 		MOperation useOperation = call.getMethod().getUSEOperation();
 		VarDeclList allParams = useOperation.paramList();
-		
-    	int numArgs = allParams.size();
-    	
-    	for (int index = 0; index < numArgs; index++) {    		
-    		arguments.put(allParams.varDecl(index).name(), new ExpressionWithValue(vmArguments.get(index)));
+
+		int numArgs = allParams.size();
+		Expression[] arguments = new Expression[numArgs];
+
+		for (int index = 0; index < numArgs; index++) {
+			arguments[index] = new ExpressionWithValue(vmArguments.get(index));
     	}
     	
     	PPCHandler handler = (validatePreConditions ? ppcHandler : DoNothingPPCHandler.getInstance());
@@ -483,7 +482,7 @@ public class Monitor implements ChangeListener {
     		if (result.wasSuccessfull()) {
     			StringBuilder message = new StringBuilder("USE operation call ");
     			message.append(self.name()).append(".").append(useOperation.name()).append("(");
-    			StringUtil.fmtSeq(message, arguments.values(), ",");
+    			StringUtil.fmtSeq(message, arguments, ",");
     			message.append(") was succesfull.");
     			fireNewLogMessage(Level.INFO,  message.toString());
     		}
@@ -640,7 +639,7 @@ public class Monitor implements ChangeListener {
 		
 		fireNewLogMessage(Level.FINE, "Registering link modification interest for class " + cls.name());
 		// Association ends with multiplicity 1 can be handled also
-		for (Map.Entry<String, MNavigableElement> end : cls.navigableEnds().entrySet()) {
+		for (Entry<String, ? extends MNavigableElement> end : cls.navigableEnds().entrySet()) {
 			
 			if (!end.getValue().isCollection() && end.getValue() instanceof MAssociationEnd) {
 				MAssociationEnd assEnd = (MAssociationEnd)end.getValue();
@@ -838,13 +837,15 @@ public class Monitor implements ChangeListener {
 		
 		if (useSoil) {
 			MNewObjectStatement stmt = new MNewObjectStatement(cls, (String)null);
-			getSystem().execute(stmt);
-			useObject = stmt.getCreatedObject();
+			StatementEvaluationResult res = getSystem().execute(stmt);
+			assert res.getStateDifference().getNewObjects().size() == 1;
+
+			useObject = res.getStateDifference().getNewObjects().iterator().next();
 		} else {
 			String name = getSystem().state().uniqueObjectNameForClass(cls);
 			useObject = getSystem().state().createObject(cls, name);
 		}
-						
+
 		vmObj.setUSEObject(useObject);
 		adapterObjectMapping.put(vmObj.getId(), vmObj);
 		
@@ -865,7 +866,7 @@ public class Monitor implements ChangeListener {
 			if (!refObject.isAlive()) {
 				MObject useObj = refObject.getUSEObject();
 				
-				ObjectValue valObject = new ObjectValue(useObj.type(), useObj); 
+				ObjectValue valObject = new ObjectValue(useObj.cls(), useObj);
 				MObjectDestructionStatement delStmt = new MObjectDestructionStatement(valObject);
 				try {
 					this.getSystem().execute(delStmt);
@@ -1066,7 +1067,7 @@ public class Monitor implements ChangeListener {
 			} catch (Exception e) {
 				fireNewLogMessage(Level.SEVERE, "ERROR: " + e.getMessage()); 
 			}
-    	} else if (fieldValue.isSet() && ((SetValue)fieldValue).elemType().isTupleType(true)) {
+    	} else if (fieldValue.isSet() && ((SetValue)fieldValue).elemType().isTypeOfTupleType()) {
     		// Qualified association
     		SetValue setValue = (SetValue)fieldValue;
     			
@@ -1273,9 +1274,6 @@ public class Monitor implements ChangeListener {
 			
 		}
 
-		/* (non-Javadoc)
-		 * @see org.tzi.use.uml.sys.ppcHandling.PPCHandler#handlePostConditions(org.tzi.use.uml.sys.MSystem, org.tzi.use.uml.sys.MOperationCall)
-		 */
 		@Override
 		public void handlePostConditions(MSystem system,
 				MOperationCall operationCall)
@@ -1301,7 +1299,17 @@ public class Monitor implements ChangeListener {
 			}
 			
 		}
-    }
+
+		@Override
+		public void handleTransitionsPre(MSystem mSystem, MOperationCall mOperationCall) throws PreConditionCheckFailedException {
+
+		}
+
+		@Override
+		public void handleTransitionsPost(MSystem mSystem, MOperationCall mOperationCall) throws PostConditionCheckFailedException {
+
+		}
+	}
     
     public void addStateChangedListener(MonitorStateListener listener) {
     	this.stateListener.add(listener);
@@ -1469,7 +1477,7 @@ public class Monitor implements ChangeListener {
 		 * Needs to be called if a method is called
 		 * which the monitor registered for.
 		 * The monitor will call all other adapter methods.  
-		 * @param vmMethodId The id of the method returned by {@link VMMethod#getId()}
+		 * @param vmMethodCall Information about the method call
 		 */
 		public void onMethodCall(VMMethodCall vmMethodCall) {
 			/*
@@ -1566,7 +1574,7 @@ public class Monitor implements ChangeListener {
 				result = new ExpressionWithValue(resultValue);
 			}
 
-			MExitOperationStatement stmt = new MExitOperationStatement(result, ppcHandler, currentUseOperationCall);
+			MExitOperationStatement stmt = new MExitOperationStatement(result, ppcHandler);
 			
 			try {
 				StatementEvaluationResult statResult = getSystem().execute(stmt);

@@ -8,10 +8,7 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.net.MalformedURLException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.URLClassLoader;
+import java.net.*;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
@@ -43,9 +40,7 @@ public class AdapterRegistry {
 		// Read all jars which are named "MonitorAdapter_*.jar"
 		File pluginDir = null;
 		try {
-			pluginDir = new File(new URL("file:///" + Options.pluginDir + "/monitor_adapter" ).toURI());
-		} catch (MalformedURLException e) {
-			// Cannot happen, runtime is already up
+			pluginDir = new File(new URI("file:///" + Options.pluginDir + "/monitor_adapter" ));
 		} catch (URISyntaxException e) {
 			// Cannot happen, runtime is already up
 		}
